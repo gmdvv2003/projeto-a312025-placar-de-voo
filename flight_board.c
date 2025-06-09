@@ -1226,7 +1226,7 @@ void handle_E_SELECTING_WHAT_TO_EDIT_state_input(ControlPanel *control_panel, ch
 
 void handle_E_SELECTING_WHAT_TO_EDIT_state(ControlPanel *control_panel)
 {
-    Flight *flight = (Flight *)control_panel->state_data;
+    Flight *flight = (Flight *)((char *)control_panel->state_data + sizeof(short));
     if (flight == NULL)
     {
         transition_control_panel_state(control_panel, IDLE, 0);
