@@ -432,6 +432,8 @@ Flight *new_flight(
     flight->airline = airline;
     flight->destination = destination;
     flight->flight_status = flight_status;
+    flight->next = NULL;
+    flight->time_of_departure_random_offset = 0;
     return flight;
 }
 
@@ -483,14 +485,6 @@ void print_board(Board *board)
                colorize_string(flight_status, current_flight->flight_status == WAITING ? ANSI_COLOR_YELLOW : ANSI_COLOR_RED));
 
         current_flight = current_flight->next;
-
-        free(time_of_departure_str);
-        free(flight_number_str);
-        free(time_of_departure);
-        free(flight_number);
-        free(airline);
-        free(destination);
-        free(flight_status);
     }
 
     printf("└────────────────┴───────────────┴───────────────────┴───────────────┴──────────────┘\n");
@@ -649,7 +643,7 @@ void set_control_panel_display_text(ControlPanel *control_panel, const char *dis
  */
 void print_control_panel_interaction_state(ControlPanel *control_panel)
 {
-    printf(control_panel->display_buffer);
+    printf("%s\n", control_panel->display_buffer);
 }
 
 /**
@@ -692,31 +686,21 @@ void handle_control_panel_input(ControlPanel *control_panel, void (*callback)(Co
 int is_flight_time_of_departure_valid(const char *input, long *time_of_departure_ptr)
 {
     if (strspn(input, "0123456789") != strlen(input))
-    {
         return 0;
-    }
 
     if (strlen(input) != 4)
-    {
         return 0;
-    }
 
     int hours, minutes;
     if (sscanf(input, "%2d%2d", &hours, &minutes) != 2)
-    {
         return 0;
-    }
 
     if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59)
-    {
         return 0;
-    }
 
     long time_of_departure = get_unix_timestamp_with_hm_offset(hours, minutes);
     if (time_of_departure < get_unix_timestamp())
-    {
         return 0;
-    }
 
     *time_of_departure_ptr = time_of_departure;
     return 1;
@@ -728,15 +712,11 @@ int is_flight_time_of_departure_valid(const char *input, long *time_of_departure
 int is_flight_number_valid(const char *input, short *flight_number_ptr)
 {
     if (strspn(input, "0123456789") != strlen(input))
-    {
         return 0;
-    }
 
     short flight_number = strtol(input, NULL, 10);
     if (flight_number < 0 || flight_number > 9999)
-    {
         return 0;
-    }
 
     *flight_number_ptr = flight_number;
     return 1;
@@ -1016,6 +996,7 @@ void handle_I_FINISH_INSERTING_FLIGHT_state(ControlPanel *control_panel)
     if (control_panel->state_data == NULL)
     {
         transition_control_panel_state(control_panel, IDLE, 0);
+        return;
     }
 
     Flight *flight = malloc(sizeof(Flight));
@@ -1103,6 +1084,7 @@ void handle_R_FINISH_REMOVING_FLIGHT_state(ControlPanel *control_panel)
     if (control_panel->state_data == NULL)
     {
         transition_control_panel_state(control_panel, IDLE, 0);
+        return;
     }
 
     short flight_number = *(short *)control_panel->state_data;
@@ -1230,6 +1212,7 @@ void handle_E_SELECTING_WHAT_TO_EDIT_state(ControlPanel *control_panel)
     if (flight == NULL)
     {
         transition_control_panel_state(control_panel, IDLE, 0);
+        return;
     }
 
     char display_text[CONTROL_PANEL_DISPLAY_BUFFER_SIZE];
@@ -1458,10 +1441,12 @@ void handle_E_FINISH_EDITING_FLIGHT_state(ControlPanel *control_panel)
     if (control_panel->state_data == NULL)
     {
         transition_control_panel_state(control_panel, IDLE, 0);
+        return;
     }
 
     short flight_number = *(short *)control_panel->state_data;
-    Flight *flight = (Flight *)((char *)control_panel->state_data + sizeof(short));
+    Flight *flight = malloc(sizeof(Flight));
+    memcpy(flight, (char *)control_panel->state_data + sizeof(short), sizeof(Flight));
 
     remove_flight(control_panel->board, flight_number);
     insert_flight(control_panel->board, flight);
